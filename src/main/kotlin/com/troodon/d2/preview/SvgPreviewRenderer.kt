@@ -23,6 +23,7 @@ class SvgPreviewRenderer : PreviewRenderer {
     private val panel = JPanel(BorderLayout())
 
     var backgroundCss: String = "white"
+    var isDarkTheme: Boolean = false
 
     private val zoomStep = 0.1
     private val minZoom = 0.1
@@ -240,6 +241,25 @@ class SvgPreviewRenderer : PreviewRenderer {
                                 display: block;
                                 width: 100%;
                                 height: auto;
+                            }
+
+                            /* Theme-aware scrollbar styling */
+                            #viewport::-webkit-scrollbar {
+                                width: 10px;
+                                height: 10px;
+                            }
+                            #viewport::-webkit-scrollbar-track {
+                                background: ${if (isDarkTheme) "#2b2b2b" else "#f1f1f1"};
+                            }
+                            #viewport::-webkit-scrollbar-thumb {
+                                background: ${if (isDarkTheme) "#606060" else "#c1c1c1"};
+                                border-radius: 5px;
+                            }
+                            #viewport::-webkit-scrollbar-thumb:hover {
+                                background: ${if (isDarkTheme) "#808080" else "#a1a1a1"};
+                            }
+                            #viewport::-webkit-scrollbar-corner {
+                                background: ${if (isDarkTheme) "#2b2b2b" else "#f1f1f1"};
                             }
                         </style>
                         <script>

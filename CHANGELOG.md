@@ -1,3 +1,7 @@
+## [1.0.10] - 2026-02-20
+### Added
+- Theme-aware scrollbar styling in SVG preview that adapts to light and dark themes
+
 ## [1.0.9] - 2026-02-20
 ### Added
 - Configurable preview background with five options: IDE Theme (matches your editor), Transparent (checkerboard), Light, Dark, and Custom (with color picker)

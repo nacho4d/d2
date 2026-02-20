@@ -230,6 +230,7 @@ class D2PreviewPanel(
         panel.border = JBUI.Borders.empty(10)
 
         svgRenderer.backgroundCss = resolveBackgroundCss()
+        svgRenderer.isDarkTheme = isDarkTheme()
         updatePreview() // Initial render
     }
 
@@ -244,6 +245,29 @@ class D2PreviewPanel(
                 // IDE Theme - use the editor background color
                 val bg = EditorColorsManager.getInstance().globalScheme.defaultBackground
                 String.format("#%02x%02x%02x", bg.red, bg.green, bg.blue)
+            }
+        }
+    }
+
+    private fun isDarkTheme(): Boolean {
+        val settings = D2SettingsState.getInstance(project)
+        return when (settings.previewBackground) {
+            "Light", "Transparent" -> false
+            "Dark" -> true
+            "Custom" -> {
+                // Estimate brightness from custom color
+                val color = settings.previewBackgroundCustomColor.trimStart('#')
+                if (color.length == 6) {
+                    val r = color.substring(0, 2).toIntOrNull(16) ?: 255
+                    val g = color.substring(2, 4).toIntOrNull(16) ?: 255
+                    val b = color.substring(4, 6).toIntOrNull(16) ?: 255
+                    (r * 0.299 + g * 0.587 + b * 0.114) < 128
+                } else false
+            }
+            else -> {
+                // IDE Theme - check editor background brightness
+                val bg = EditorColorsManager.getInstance().globalScheme.defaultBackground
+                (bg.red * 0.299 + bg.green * 0.587 + bg.blue * 0.114) < 128
             }
         }
     }
@@ -344,8 +368,9 @@ class D2PreviewPanel(
                 val exitCode = process.waitFor()
 
                 if (exitCode == 0 && tempOutputFile!!.exists()) {
-                    // Set background CSS on SVG renderer before rendering
+                    // Set background CSS and theme on SVG renderer before rendering
                     svgRenderer.backgroundCss = resolveBackgroundCss()
+                    svgRenderer.isDarkTheme = isDarkTheme()
 
                     // Use the current renderer to display the output
                     // Create a temporary source file reference for the renderer

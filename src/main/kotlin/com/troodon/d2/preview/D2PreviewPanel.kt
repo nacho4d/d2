@@ -5,6 +5,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -228,7 +229,23 @@ class D2PreviewPanel(
         panel.add(statusPanel, BorderLayout.SOUTH)
         panel.border = JBUI.Borders.empty(10)
 
+        svgRenderer.backgroundCss = resolveBackgroundCss()
         updatePreview() // Initial render
+    }
+
+    private fun resolveBackgroundCss(): String {
+        val settings = D2SettingsState.getInstance(project)
+        return when (settings.previewBackground) {
+            "Transparent" -> "repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 0 0 / 20px 20px"
+            "Light" -> "white"
+            "Dark" -> "#1e1e1e"
+            "Custom" -> settings.previewBackgroundCustomColor
+            else -> {
+                // IDE Theme - use the editor background color
+                val bg = EditorColorsManager.getInstance().globalScheme.defaultBackground
+                String.format("#%02x%02x%02x", bg.red, bg.green, bg.blue)
+            }
+        }
     }
 
     private fun switchRenderer(newRenderer: PreviewRenderer) {
@@ -327,6 +344,9 @@ class D2PreviewPanel(
                 val exitCode = process.waitFor()
 
                 if (exitCode == 0 && tempOutputFile!!.exists()) {
+                    // Set background CSS on SVG renderer before rendering
+                    svgRenderer.backgroundCss = resolveBackgroundCss()
+
                     // Use the current renderer to display the output
                     // Create a temporary source file reference for the renderer
                     val tempSourceForRenderer = FileUtil.createTempFile("d2-source", ".d2", true)

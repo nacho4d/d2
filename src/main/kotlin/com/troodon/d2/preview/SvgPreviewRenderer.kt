@@ -22,6 +22,8 @@ class SvgPreviewRenderer : PreviewRenderer {
     private val browser: JBCefBrowser? = if (JBCefApp.isSupported()) JBCefBrowser() else null
     private val panel = JPanel(BorderLayout())
 
+    var backgroundCss: String = "white"
+
     private val zoomStep = 0.1
     private val minZoom = 0.1
     private val maxZoom = 5.0
@@ -119,7 +121,7 @@ class SvgPreviewRenderer : PreviewRenderer {
                             align-items: center;
                             height: 100vh;
                             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                            background: #f5f5f5;
+                            background: $backgroundCss;
                         }
                         .loader-container {
                             text-align: center;
@@ -188,8 +190,14 @@ class SvgPreviewRenderer : PreviewRenderer {
                     val currentScrollLeft = savedScrollLeft
                     val currentScrollTop = savedScrollTop
 
-                    // Read SVG content
-                    val svgContent = Files.readString(outputFile.toPath())
+                    // Read SVG content and make the D2 background rect transparent
+                    // so the CSS background shows through. The first <rect> in D2's SVG
+                    // output is the background fill (class "fill-N7").
+                    var svgContent = Files.readString(outputFile.toPath())
+                    svgContent = svgContent.replaceFirst(
+                        Regex("""(<rect\s[^>]*?fill=")#[0-9A-Fa-f]{6}("[^>]*?class="[^"]*fill-N7[^"]*"[^/]*/\s*>)"""),
+                        "$1none$2"
+                    )
 
                     LOG.info("Rendering with captured state - zoom: $currentZoom, scrollLeft: $currentScrollLeft, scrollTop: $currentScrollTop")
 
@@ -207,7 +215,7 @@ class SvgPreviewRenderer : PreviewRenderer {
                                 margin: 0;
                                 padding: 0;
                                 overflow: hidden;
-                                background: white;
+                                background: $backgroundCss;
                             }
 
                             #viewport {

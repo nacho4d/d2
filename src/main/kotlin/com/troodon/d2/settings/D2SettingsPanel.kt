@@ -11,9 +11,13 @@ import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import java.awt.BorderLayout
+import java.awt.Color
+import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Font
 import javax.swing.JButton
+import javax.swing.JColorChooser
+import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JPanel
 
@@ -35,6 +39,11 @@ class D2SettingsPanel(private val project: Project) {
         isBorderPainted = false
         isFocusPainted = false
         isContentAreaFilled = false
+    }
+    private val previewBackgroundCombo = JComboBox(arrayOf("IDE Theme", "Transparent", "Light", "Dark", "Custom"))
+    private val customColorButton = JButton().apply {
+        preferredSize = Dimension(24, 24)
+        toolTipText = "Choose custom color"
     }
     private val versionLabel = JBLabel()
     private val statusLabel = JBLabel()
@@ -63,11 +72,28 @@ class D2SettingsPanel(private val project: Project) {
             debounceDelayField.text = DEFAULT_DEBOUNCE_DELAY.toString()
         }
 
+        previewBackgroundCombo.addActionListener {
+            customColorButton.isVisible = previewBackgroundCombo.selectedItem == "Custom"
+        }
+
+        customColorButton.addActionListener {
+            val current = try { Color.decode(customColorButton.name ?: DEFAULT_PREVIEW_BACKGROUND_CUSTOM_COLOR) } catch (_: Exception) { Color.WHITE }
+            val chosen = JColorChooser.showDialog(customColorButton, "Choose Preview Background Color", current)
+            if (chosen != null) {
+                customColorButton.name = String.format("#%02x%02x%02x", chosen.red, chosen.green, chosen.blue)
+                customColorButton.background = chosen
+            }
+        }
+
         // Load current setting
         val settings = D2SettingsState.getInstance(project)
         d2PathField.text = settings.d2CliPath
         d2ArgumentsField.text = settings.d2Arguments
         debounceDelayField.text = settings.debounceDelay.toString()
+        previewBackgroundCombo.selectedItem = settings.previewBackground
+        customColorButton.name = settings.previewBackgroundCustomColor
+        try { customColorButton.background = Color.decode(settings.previewBackgroundCustomColor) } catch (_: Exception) {}
+        customColorButton.isVisible = settings.previewBackground == "Custom"
 
         updateVersion()
 
@@ -85,12 +111,19 @@ class D2SettingsPanel(private val project: Project) {
         debouncePanel.add(debounceDelayField, BorderLayout.CENTER)
         debouncePanel.add(resetDebounceButton, BorderLayout.EAST)
 
+        // Create a panel for preview background combo with color button
+        val previewBgPanel = JPanel(BorderLayout(5, 0))
+        previewBgPanel.add(previewBackgroundCombo, BorderLayout.CENTER)
+        previewBgPanel.add(customColorButton, BorderLayout.EAST)
+
         val panel = FormBuilder.createFormBuilder()
             .addLabeledComponent("D2 CLI Path:", d2PathField)
             .addLabeledComponent("D2 Arguments:", argumentsPanel)
             .addTooltip("Additional arguments to pass to d2 command (e.g., --sketch, --theme=200 --animate-interval=1000)")
             .addLabeledComponent("Auto-refresh", debouncePanel)
             .addTooltip("Delay in milliseconds before auto-refreshing the preview after typing")
+            .addLabeledComponent("Preview Background:", previewBgPanel)
+            .addTooltip("Background color for the SVG preview panel")
             .addLabeledComponent("D2 CLI Status:", statusPanel)
             .addLabeledComponent("D2 Version:", versionLabel)
             .addComponentFillVertically(JPanel(), 0)
@@ -113,7 +146,9 @@ class D2SettingsPanel(private val project: Project) {
         val settings = D2SettingsState.getInstance(project)
         return d2PathField.text != settings.d2CliPath ||
                d2ArgumentsField.text != settings.d2Arguments ||
-               debounceDelayField.text.toIntOrNull() != settings.debounceDelay
+               debounceDelayField.text.toIntOrNull() != settings.debounceDelay ||
+               previewBackgroundCombo.selectedItem as String != settings.previewBackground ||
+               (customColorButton.name ?: DEFAULT_PREVIEW_BACKGROUND_CUSTOM_COLOR) != settings.previewBackgroundCustomColor
     }
 
     fun apply() {
@@ -121,6 +156,8 @@ class D2SettingsPanel(private val project: Project) {
         settings.d2CliPath = d2PathField.text
         settings.d2Arguments = d2ArgumentsField.text.trim()
         settings.debounceDelay = debounceDelayField.text.toIntOrNull() ?: DEFAULT_DEBOUNCE_DELAY
+        settings.previewBackground = previewBackgroundCombo.selectedItem as String
+        settings.previewBackgroundCustomColor = customColorButton.name ?: DEFAULT_PREVIEW_BACKGROUND_CUSTOM_COLOR
         updateVersion()
     }
 
@@ -129,6 +166,10 @@ class D2SettingsPanel(private val project: Project) {
         d2PathField.text = settings.d2CliPath
         d2ArgumentsField.text = settings.d2Arguments
         debounceDelayField.text = settings.debounceDelay.toString()
+        previewBackgroundCombo.selectedItem = settings.previewBackground
+        customColorButton.name = settings.previewBackgroundCustomColor
+        try { customColorButton.background = Color.decode(settings.previewBackgroundCustomColor) } catch (_: Exception) {}
+        customColorButton.isVisible = settings.previewBackground == "Custom"
         updateVersion()
     }
 

@@ -10,6 +10,8 @@ import com.intellij.util.xmlb.XmlSerializerUtil
 
 const val DEFAULT_D2_ARGUMENTS = "--animate-interval=1000"
 const val DEFAULT_DEBOUNCE_DELAY = 1000
+const val DEFAULT_PREVIEW_BACKGROUND = "IDE Theme"
+const val DEFAULT_PREVIEW_BACKGROUND_CUSTOM_COLOR = "#ffffff"
 
 @Service(Service.Level.PROJECT)
 @State(name = "D2Settings", storages = [Storage("d2Settings.xml")])
@@ -18,6 +20,8 @@ class D2SettingsState : PersistentStateComponent<D2SettingsState> {
     var d2CliPath: String = "" // Empty by default - will auto-detect from common paths
     var d2Arguments: String = DEFAULT_D2_ARGUMENTS // Additional arguments to pass to d2 command (e.g., --sketch)
     var debounceDelay: Int = DEFAULT_DEBOUNCE_DELAY // Auto-refresh delay in milliseconds
+    var previewBackground: String = DEFAULT_PREVIEW_BACKGROUND // Preview background mode
+    var previewBackgroundCustomColor: String = DEFAULT_PREVIEW_BACKGROUND_CUSTOM_COLOR // Custom background color hex
 
     /**
      * Gets the effective D2 CLI path to use for execution.

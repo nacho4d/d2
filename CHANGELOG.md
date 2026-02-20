@@ -1,3 +1,14 @@
+## [1.0.9] - 2026-02-20
+### Added
+- Configurable preview background with five options: IDE Theme (matches your editor), Transparent (checkerboard), Light, Dark, and Custom (with color picker)
+
+## [1.0.8] - 2026-02-20
+### Fixed
+- Preview rendering now uses stdin and the original file's directory for D2 CLI execution, fixing issues with imports and relative paths in D2 files
+
+### Added
+- Makefile with version bumping and common development tasks
+
 ## [1.0.7] - 2026-01-05
 ### Added
 - Export support for additional formats: PDF, TXT, and PPTX (in addition to existing SVG and PNG)

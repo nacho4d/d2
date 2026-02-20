@@ -7,6 +7,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileDocumentManagerListener
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
@@ -65,7 +66,6 @@ class D2PreviewPanel(
     private val pngRadioButton = JRadioButton("PNG", false)
 
     private var tempOutputFile: File? = null
-    private var tempSourceFile: File? = null
     private var isFormatting = false
 
     private val contentPanel = JPanel(BorderLayout())
@@ -242,6 +242,12 @@ class D2PreviewPanel(
         }
     }
 
+    private fun getOriginalFileDir(): File? {
+        val virtualFile = FileDocumentManager.getInstance().getFile(editor.document) ?: return null
+        val parentPath = virtualFile.parent?.path ?: return null
+        return File(parentPath)
+    }
+
     private fun updatePreview() {
         refreshButton.isEnabled = false
         showStatus("Rendering...")
@@ -253,31 +259,38 @@ class D2PreviewPanel(
                     editor.document.text
                 }
 
-                // Write editor content to a temp source file
-                tempSourceFile?.delete()
-                tempSourceFile = FileUtil.createTempFile("d2-source", ".d2", true)
-                tempSourceFile!!.writeText(editorContent)
+                val originalFileDir = getOriginalFileDir()
 
                 // Apply d2 fmt if auto-format is enabled
                 if (autoFormatCheckBox.isSelected) {
                     val d2Path = D2SettingsState.getInstance(project).getEffectiveD2Path()
-                    val fmtProcess = ProcessBuilder(
-                        d2Path,
-                        "fmt",
-                        tempSourceFile!!.absolutePath
-                    ).redirectErrorStream(true).start()
-
-                    val fmtExitCode = fmtProcess.waitFor()
-                    if (fmtExitCode == 0) {
-                        // Read the formatted content and update the editor
-                        val formattedContent = tempSourceFile!!.readText()
-                        ApplicationManager.getApplication().invokeLater {
-                            isFormatting = true
-                            ApplicationManager.getApplication().runWriteAction {
-                                editor.document.setText(formattedContent)
-                            }
-                            isFormatting = false
+                    val fmtTempFile = FileUtil.createTempFile("d2-fmt", ".d2", true)
+                    try {
+                        fmtTempFile.writeText(editorContent)
+                        val fmtProcessBuilder = ProcessBuilder(
+                            d2Path,
+                            "fmt",
+                            fmtTempFile.absolutePath
+                        ).redirectErrorStream(true)
+                        if (originalFileDir != null) {
+                            fmtProcessBuilder.directory(originalFileDir)
                         }
+                        val fmtProcess = fmtProcessBuilder.start()
+
+                        val fmtExitCode = fmtProcess.waitFor()
+                        if (fmtExitCode == 0) {
+                            // Read the formatted content and update the editor
+                            val formattedContent = fmtTempFile.readText()
+                            ApplicationManager.getApplication().invokeLater {
+                                isFormatting = true
+                                ApplicationManager.getApplication().runWriteAction {
+                                    editor.document.setText(formattedContent)
+                                }
+                                isFormatting = false
+                            }
+                        }
+                    } finally {
+                        fmtTempFile.delete()
                     }
                 }
 
@@ -286,27 +299,43 @@ class D2PreviewPanel(
                 val extension = currentRenderer.getFileExtension()
                 tempOutputFile = FileUtil.createTempFile("d2-preview", extension, true)
 
-                // Execute d2 CLI to generate output file
+                // Execute d2 CLI to generate output file using stdin
                 val settings = D2SettingsState.getInstance(project)
                 val d2Path = settings.getEffectiveD2Path()
                 val d2Arguments = filterArgumentsForOutput(settings.d2Arguments, extension)
 
-                // Build command with arguments
+                // Build command with arguments, using "-" for stdin input
                 val command = mutableListOf(d2Path)
                 if (d2Arguments.isNotBlank()) {
                     // Split arguments by spaces, preserving quoted strings
                     command.addAll(d2Arguments.split(Regex("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)")))
                 }
-                command.add(tempSourceFile!!.absolutePath)
+                command.add("-")
                 command.add(tempOutputFile!!.absolutePath)
 
-                val process = ProcessBuilder(command).redirectErrorStream(true).start()
+                val processBuilder = ProcessBuilder(command).redirectErrorStream(true)
+                if (originalFileDir != null) {
+                    processBuilder.directory(originalFileDir)
+                }
+                val process = processBuilder.start()
+
+                // Write content to stdin and close it
+                process.outputStream.bufferedWriter().use { writer ->
+                    writer.write(editorContent)
+                }
 
                 val exitCode = process.waitFor()
 
                 if (exitCode == 0 && tempOutputFile!!.exists()) {
                     // Use the current renderer to display the output
-                    currentRenderer.render(tempSourceFile!!, tempOutputFile!!)
+                    // Create a temporary source file reference for the renderer
+                    val tempSourceForRenderer = FileUtil.createTempFile("d2-source", ".d2", true)
+                    try {
+                        tempSourceForRenderer.writeText(editorContent)
+                        currentRenderer.render(tempSourceForRenderer, tempOutputFile!!)
+                    } finally {
+                        tempSourceForRenderer.delete()
+                    }
 
                     ApplicationManager.getApplication().invokeLater {
                         showStatus("Updated at ${java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))}")
@@ -353,13 +382,11 @@ class D2PreviewPanel(
             try {
                 showStatus("Exporting $extension...")
 
-                // Ensure we have a source file that reflects current editor contents
                 val editorContent = ApplicationManager.getApplication().runReadAction<String> {
                     editor.document.text
                 }
-                val sourceFile = tempSourceFile?.takeIf { it.exists() } ?: FileUtil.createTempFile("d2-source", ".d2", true)
-                sourceFile.writeText(editorContent)
-                tempSourceFile = sourceFile
+
+                val originalFileDir = getOriginalFileDir()
 
                 val settings = D2SettingsState.getInstance(project)
                 val d2Path = settings.getEffectiveD2Path()
@@ -374,10 +401,20 @@ class D2PreviewPanel(
                 if (d2Arguments.isNotBlank()) {
                     command.addAll(d2Arguments.split(Regex("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)")))
                 }
-                command.add(sourceFile.absolutePath)
+                command.add("-")
                 command.add(exportFile.absolutePath)
 
-                val process = ProcessBuilder(command).redirectErrorStream(true).start()
+                val processBuilder = ProcessBuilder(command).redirectErrorStream(true)
+                if (originalFileDir != null) {
+                    processBuilder.directory(originalFileDir)
+                }
+                val process = processBuilder.start()
+
+                // Write content to stdin and close it
+                process.outputStream.bufferedWriter().use { writer ->
+                    writer.write(editorContent)
+                }
+
                 val exitCode = process.waitFor()
 
                 if (exitCode != 0 || !exportFile.exists()) {
@@ -411,6 +448,5 @@ class D2PreviewPanel(
         svgRenderer.dispose()
         pngRenderer.dispose()
         tempOutputFile?.delete()
-        tempSourceFile?.delete()
     }
 }

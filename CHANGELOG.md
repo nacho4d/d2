@@ -1,3 +1,7 @@
+## [1.0.11] - 2026-02-23
+### Added
+- Style property autocomplete: suggests 19 D2 style properties (`opacity`, `fill`, `stroke`, `font-size`, `bold`, etc.) when typing inside `style { }` blocks, with automatic exclusion of already-defined properties
+
 ## [1.0.10] - 2026-02-20
 ### Added
 - Theme-aware scrollbar styling in SVG preview that adapts to light and dark themes

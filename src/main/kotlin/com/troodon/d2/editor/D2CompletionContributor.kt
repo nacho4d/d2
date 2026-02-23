@@ -18,6 +18,13 @@ class D2CompletionContributor : CompletionContributor() {
             D2NodePropertyCompletionProvider()
         )
 
+        // Style property completion (inside style { } blocks)
+        extend(
+            CompletionType.BASIC,
+            PlatformPatterns.psiElement().withLanguage(D2Language.INSTANCE),
+            D2StylePropertyCompletionProvider()
+        )
+
         // Shape completion
         extend(
             CompletionType.BASIC,

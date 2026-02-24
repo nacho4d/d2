@@ -18,6 +18,7 @@ import com.intellij.util.Alarm
 import com.intellij.util.ui.JBUI
 import com.troodon.d2.settings.D2SettingsConfigurable
 import com.troodon.d2.settings.D2SettingsState
+import com.troodon.d2.util.D2CommandBuilder
 import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.io.File
@@ -304,15 +305,17 @@ class D2PreviewPanel(
 
                 // Apply d2 fmt if auto-format is enabled
                 if (autoFormatCheckBox.isSelected) {
-                    val d2Path = D2SettingsState.getInstance(project).getEffectiveD2Path()
+                    val fmtSettings = D2SettingsState.getInstance(project)
+                    val d2Path = fmtSettings.getEffectiveD2Path()
                     val fmtTempFile = FileUtil.createTempFile("d2-fmt", ".d2", true)
                     try {
                         fmtTempFile.writeText(editorContent)
-                        val fmtProcessBuilder = ProcessBuilder(
-                            d2Path,
-                            "fmt",
-                            fmtTempFile.absolutePath
-                        ).redirectErrorStream(true)
+                        val fmtCommand = D2CommandBuilder.buildD2FmtCommand(
+                            d2Path, fmtTempFile.absolutePath,
+                            fmtSettings.useWsl, fmtSettings.wslDistribution
+                        )
+                        val fmtProcessBuilder = ProcessBuilder(fmtCommand)
+                            .redirectErrorStream(true)
                         if (originalFileDir != null) {
                             fmtProcessBuilder.directory(originalFileDir)
                         }
@@ -345,14 +348,10 @@ class D2PreviewPanel(
                 val d2Path = settings.getEffectiveD2Path()
                 val d2Arguments = filterArgumentsForOutput(settings.d2Arguments, extension)
 
-                // Build command with arguments, using "-" for stdin input
-                val command = mutableListOf(d2Path)
-                if (d2Arguments.isNotBlank()) {
-                    // Split arguments by spaces, preserving quoted strings
-                    command.addAll(d2Arguments.split(Regex("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)")))
-                }
-                command.add("-")
-                command.add(tempOutputFile!!.absolutePath)
+                val command = D2CommandBuilder.buildD2RenderCommand(
+                    d2Path, d2Arguments, tempOutputFile!!.absolutePath,
+                    settings.useWsl, settings.wslDistribution
+                )
 
                 val processBuilder = ProcessBuilder(command).redirectErrorStream(true)
                 if (originalFileDir != null) {
@@ -442,12 +441,10 @@ class D2PreviewPanel(
                     "d2-export-${System.currentTimeMillis()}$extension"
                 )
 
-                val command = mutableListOf(d2Path)
-                if (d2Arguments.isNotBlank()) {
-                    command.addAll(d2Arguments.split(Regex("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)")))
-                }
-                command.add("-")
-                command.add(exportFile.absolutePath)
+                val command = D2CommandBuilder.buildD2RenderCommand(
+                    d2Path, d2Arguments, exportFile.absolutePath,
+                    settings.useWsl, settings.wslDistribution
+                )
 
                 val processBuilder = ProcessBuilder(command).redirectErrorStream(true)
                 if (originalFileDir != null) {

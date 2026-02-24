@@ -1,3 +1,7 @@
+## [1.0.12] - 2026-02-24
+### Added
+- WSL2 support: run D2 CLI through Windows Subsystem for Linux with a new "Use WSL" toggle and optional distribution selector in settings
+
 ## [1.0.11] - 2026-02-23
 ### Added
 - Style property autocomplete: suggests 19 D2 style properties (`opacity`, `fill`, `stroke`, `font-size`, `bold`, etc.) when typing inside `style { }` blocks, with automatic exclusion of already-defined properties

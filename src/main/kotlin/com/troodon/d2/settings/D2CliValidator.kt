@@ -1,6 +1,7 @@
 package com.troodon.d2.settings
 
 import com.intellij.openapi.diagnostic.Logger
+import com.troodon.d2.util.D2CommandBuilder
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -56,10 +57,26 @@ object D2CliValidator {
         }
     }
 
-    fun validateInstallation(d2CliPath: String = ""): ValidationResult {
+    fun validateInstallation(
+        d2CliPath: String = "",
+        useWsl: Boolean = false,
+        wslDistribution: String = ""
+    ): ValidationResult {
         // If a specific path is provided, validate only that path
         if (d2CliPath.isNotBlank()) {
-            return tryValidatePath(d2CliPath)
+            return tryValidatePath(d2CliPath, useWsl, wslDistribution)
+        }
+
+        // When WSL mode is enabled, just try "d2" (it should be on PATH inside WSL)
+        if (useWsl) {
+            val result = tryValidatePath("d2", useWsl, wslDistribution)
+            if (result.isInstalled) {
+                return result.copy(foundPath = "d2")
+            }
+            return ValidationResult(
+                isInstalled = false,
+                error = "D2 CLI not found in WSL. Install D2 inside your WSL distribution."
+            )
         }
 
         // If path is empty, try common paths
@@ -71,7 +88,7 @@ object D2CliValidator {
                 continue
             }
 
-            val result = tryValidatePath(path)
+            val result = tryValidatePath(path, useWsl, wslDistribution)
             if (result.isInstalled) {
                 LOG.info("Found D2 CLI at: $path")
                 return result.copy(foundPath = path)
@@ -85,9 +102,14 @@ object D2CliValidator {
         )
     }
 
-    private fun tryValidatePath(path: String): ValidationResult {
+    private fun tryValidatePath(
+        path: String,
+        useWsl: Boolean = false,
+        wslDistribution: String = ""
+    ): ValidationResult {
         return try {
-            val process = ProcessBuilder(path, "--version")
+            val command = D2CommandBuilder.buildD2VersionCommand(path, useWsl, wslDistribution)
+            val process = ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start()
 

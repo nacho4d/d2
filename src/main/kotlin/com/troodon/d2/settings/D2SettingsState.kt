@@ -22,6 +22,8 @@ class D2SettingsState : PersistentStateComponent<D2SettingsState> {
     var debounceDelay: Int = DEFAULT_DEBOUNCE_DELAY // Auto-refresh delay in milliseconds
     var previewBackground: String = DEFAULT_PREVIEW_BACKGROUND // Preview background mode
     var previewBackgroundCustomColor: String = DEFAULT_PREVIEW_BACKGROUND_CUSTOM_COLOR // Custom background color hex
+    var useWsl: Boolean = false // Whether to run D2 CLI through WSL2
+    var wslDistribution: String = "" // WSL distribution name (empty = default)
 
     /**
      * Gets the effective D2 CLI path to use for execution.
@@ -34,7 +36,7 @@ class D2SettingsState : PersistentStateComponent<D2SettingsState> {
         }
 
         // Try to find D2 in common locations
-        val validation = D2CliValidator.validateInstallation("")
+        val validation = D2CliValidator.validateInstallation("", useWsl, wslDistribution)
         if (validation.isInstalled && validation.foundPath != null) {
             return validation.foundPath
         }

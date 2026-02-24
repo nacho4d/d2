@@ -16,6 +16,7 @@ import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Font
 import javax.swing.JButton
+import javax.swing.JCheckBox
 import javax.swing.JColorChooser
 import javax.swing.JComboBox
 import javax.swing.JComponent
@@ -44,6 +45,10 @@ class D2SettingsPanel(private val project: Project) {
     private val customColorButton = JButton().apply {
         preferredSize = Dimension(24, 24)
         toolTipText = "Choose custom color"
+    }
+    private val useWslCheckBox = JCheckBox("Use WSL to run D2")
+    private val wslDistributionField = JBTextField().apply {
+        toolTipText = "Leave empty for default distribution"
     }
     private val versionLabel = JBLabel()
     private val statusLabel = JBLabel()
@@ -85,6 +90,10 @@ class D2SettingsPanel(private val project: Project) {
             }
         }
 
+        useWslCheckBox.addActionListener {
+            wslDistributionField.isEnabled = useWslCheckBox.isSelected
+        }
+
         // Load current setting
         val settings = D2SettingsState.getInstance(project)
         d2PathField.text = settings.d2CliPath
@@ -94,6 +103,9 @@ class D2SettingsPanel(private val project: Project) {
         customColorButton.name = settings.previewBackgroundCustomColor
         try { customColorButton.background = Color.decode(settings.previewBackgroundCustomColor) } catch (_: Exception) {}
         customColorButton.isVisible = settings.previewBackground == "Custom"
+        useWslCheckBox.isSelected = settings.useWsl
+        wslDistributionField.text = settings.wslDistribution
+        wslDistributionField.isEnabled = settings.useWsl
 
         updateVersion()
 
@@ -118,6 +130,10 @@ class D2SettingsPanel(private val project: Project) {
 
         val panel = FormBuilder.createFormBuilder()
             .addLabeledComponent("D2 CLI Path:", d2PathField)
+            .addComponent(useWslCheckBox)
+            .addTooltip("Run D2 CLI through WSL2 (Windows Subsystem for Linux)")
+            .addLabeledComponent("WSL Distribution:", wslDistributionField)
+            .addTooltip("Leave empty to use the default WSL distribution")
             .addLabeledComponent("D2 Arguments:", argumentsPanel)
             .addTooltip("Additional arguments to pass to d2 command (e.g., --sketch, --theme=200 --animate-interval=1000)")
             .addLabeledComponent("Auto-refresh", debouncePanel)
@@ -148,7 +164,9 @@ class D2SettingsPanel(private val project: Project) {
                d2ArgumentsField.text != settings.d2Arguments ||
                debounceDelayField.text.toIntOrNull() != settings.debounceDelay ||
                previewBackgroundCombo.selectedItem as String != settings.previewBackground ||
-               (customColorButton.name ?: DEFAULT_PREVIEW_BACKGROUND_CUSTOM_COLOR) != settings.previewBackgroundCustomColor
+               (customColorButton.name ?: DEFAULT_PREVIEW_BACKGROUND_CUSTOM_COLOR) != settings.previewBackgroundCustomColor ||
+               useWslCheckBox.isSelected != settings.useWsl ||
+               wslDistributionField.text != settings.wslDistribution
     }
 
     fun apply() {
@@ -158,6 +176,8 @@ class D2SettingsPanel(private val project: Project) {
         settings.debounceDelay = debounceDelayField.text.toIntOrNull() ?: DEFAULT_DEBOUNCE_DELAY
         settings.previewBackground = previewBackgroundCombo.selectedItem as String
         settings.previewBackgroundCustomColor = customColorButton.name ?: DEFAULT_PREVIEW_BACKGROUND_CUSTOM_COLOR
+        settings.useWsl = useWslCheckBox.isSelected
+        settings.wslDistribution = wslDistributionField.text.trim()
         updateVersion()
     }
 
@@ -170,6 +190,9 @@ class D2SettingsPanel(private val project: Project) {
         customColorButton.name = settings.previewBackgroundCustomColor
         try { customColorButton.background = Color.decode(settings.previewBackgroundCustomColor) } catch (_: Exception) {}
         customColorButton.isVisible = settings.previewBackground == "Custom"
+        useWslCheckBox.isSelected = settings.useWsl
+        wslDistributionField.text = settings.wslDistribution
+        wslDistributionField.isEnabled = settings.useWsl
         updateVersion()
     }
 
@@ -181,7 +204,9 @@ class D2SettingsPanel(private val project: Project) {
         // Run validation in background to avoid blocking UI
         Thread {
             val d2Path = d2PathField.text
-            val validation = D2CliValidator.validateInstallation(d2Path)
+            val validation = D2CliValidator.validateInstallation(
+                d2Path, useWslCheckBox.isSelected, wslDistributionField.text.trim()
+            )
 
             javax.swing.SwingUtilities.invokeLater {
                 if (validation.isInstalled) {

@@ -30,6 +30,27 @@
     }
   });
 
+  // JCEF/Chromium does not resolve @font-face declared inside a Shadow DOM
+  // style sheet. To fix this, extract @font-face rules from the SVG and inject
+  // them into document.head (light DOM) where the browser can load them.
+  // Base64 data URIs never contain '}', so the regex boundary is unambiguous.
+  // Font-family names are unique per D2 render (e.g. "d2-1447744005-font-bold"),
+  // so we deduplicate by name to avoid re-injecting on every re-render.
+  function hoistFontFaces(svg) {
+    var matches = svg.match(/@font-face\s*\{[^}]*\}/g) || [];
+    matches.forEach(function (rule) {
+      var nameMatch = rule.match(/font-family:\s*([^;"\n]+)/);
+      if (!nameMatch) return;
+      var key = nameMatch[1].trim().replace(/['"]/g, '');
+      if (!document.head.querySelector('style[data-d2-font="' + key + '"]')) {
+        var el = document.createElement('style');
+        el.setAttribute('data-d2-font', key);
+        el.textContent = rule;
+        document.head.appendChild(el);
+      }
+    });
+  }
+
   // D2 CLI outputs SVGs with pixel-exact width/height matching the viewBox
   // (e.g. viewBox="0 0 255 600" → width="255" height="600"), which renders too
   // large next to Markdown text. Scale to 70% so diagrams are proportional.
@@ -71,6 +92,8 @@
           var host = document.createElement('div');
           // Shadow DOM isolates D2's embedded <style> tags from the page.
           var shadow = host.attachShadow({ mode: 'open' });
+          // Hoist @font-face rules to the light DOM so JCEF/Chromium resolves them.
+          hoistFontFaces(svg);
           // Set intrinsic pixel dimensions from the SVG's viewBox so the browser
           // renders it at its natural size rather than stretching to fill the column.
           // max-width:100% still allows it to shrink on narrow screens.

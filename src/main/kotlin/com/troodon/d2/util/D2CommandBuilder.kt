@@ -81,6 +81,25 @@ object D2CommandBuilder {
     }
 
     /**
+     * Builds a D2 render command that reads from stdin and writes SVG to stdout.
+     * Used by the Markdown preview to avoid a temp output file.
+     */
+    fun buildD2StdinStdoutCommand(
+        d2Path: String,
+        d2Arguments: String,
+        useWsl: Boolean,
+        wslDistro: String = ""
+    ): List<String> {
+        val args = mutableListOf<String>()
+        if (d2Arguments.isNotBlank()) {
+            args.addAll(d2Arguments.split(Regex("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)")))
+        }
+        args.add("-") // stdin
+        args.add("-") // stdout (SVG)
+        return buildCommand(d2Path, args, useWsl, wslDistro)
+    }
+
+    /**
      * Builds a D2 version check command.
      */
     fun buildD2VersionCommand(

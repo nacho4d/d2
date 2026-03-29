@@ -3,6 +3,7 @@ package com.troodon.d2.markdown
 import com.google.gson.Gson
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.ui.JBColor
 import com.troodon.d2.settings.D2SettingsState
 import org.intellij.plugins.markdown.extensions.MarkdownBrowserPreviewExtension
 import org.intellij.plugins.markdown.ui.preview.BrowserPipe
@@ -59,10 +60,15 @@ private class D2BrowserExtension(
                 val resultJson = try {
                     val project = panel.project ?: return@executeOnPooledThread
                     val settings = D2SettingsState.getInstance(project)
+                    // If the IDE is in dark mode and the user has not already set a --theme flag, inject D2's dark theme.
+                    val themeArgs = if (!JBColor.isBright() && !settings.d2Arguments.contains("--theme")) "--theme 200" else ""
+                    val effectiveArgs = listOf(themeArgs, settings.d2Arguments)
+                        .filter { it.isNotBlank() }
+                        .joinToString(" ")
                     val svg = D2Runner.renderToSvg(
                         request.source,
                         settings.getEffectiveD2Path(),
-                        settings.d2Arguments,
+                        effectiveArgs,
                         settings.useWsl,
                         settings.wslDistribution
                     )

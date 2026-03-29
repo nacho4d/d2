@@ -51,22 +51,52 @@
     });
   }
 
-  // D2 CLI outputs SVGs with pixel-exact width/height matching the viewBox
-  // (e.g. viewBox="0 0 255 600" → width="255" height="600"), which renders too
-  // large next to Markdown text. Scale to 70% so diagrams are proportional.
-  // Tune this if diagrams look too big or too small.
-  var D2_SCALE = 0.7;
+  // Proportional scale factor: 1.0 means the diagram renders at its natural
+  // pixel size at the current IDE Markdown font size. Increase to make diagrams
+  // larger relative to the text, decrease to make them smaller.
+  var D2_SCALE = 1.0;
 
-  // Replaces width/height on the root <svg> with values scaled from the viewBox.
-  // e.g. viewBox="0 0 255 600" → <svg width="179" height="420"> (at 70%)
-  function setSvgNaturalSize(svg) {
-    var vb = svg.match(/viewBox="[\d.+-]+\s+[\d.+-]+\s+([\d.]+)\s+([\d.]+)"/);
-    if (!vb) return svg;
-    var w = Math.round(parseFloat(vb[1]) * D2_SCALE);
-    var h = Math.round(parseFloat(vb[2]) * D2_SCALE);
+  // Read from document.body at IdeReady — this is where IntelliJ sets the
+  // Markdown preview font size. Font size changes cause a full page reload,
+  // so this value is always correct for the current session.
+  var refFontSize;
+
+  // Returns the viewBox width of the root <svg>, or null if not found.
+  function svgViewBoxWidth(svg) {
+    var vb = svg.match(/viewBox="[\d.+-]+\s+[\d.+-]+\s+([\d.]+)\s+[\d.]+"/);
+    return vb ? parseFloat(vb[1]) : null;
+  }
+
+  // Removes explicit width/height attributes from the root <svg> so CSS controls sizing.
+  function stripSvgDimensions(svg) {
     var s = svg.replace(/(<svg\b[^>]*?)\s+width="[^"]*"/, '$1');
-    s = s.replace(/(<svg\b[^>]*?)\s+height="[^"]*"/, '$1');
-    return s.replace(/(<svg\b[^>]*?)>/, '$1 width="' + w + '" height="' + h + '">');
+    return s.replace(/(<svg\b[^>]*?)\s+height="[^"]*"/, '$1');
+  }
+
+  function showD2Error(pre, error) {
+    var box = document.createElement('pre');
+    box.style.cssText =
+      'color:#c00;border:1px solid #c00;border-radius:4px;' +
+      'padding:8px;font-size:12px;white-space:pre-wrap;margin:4px 0;';
+    box.textContent = '\u26A0 D2: ' + error;
+    pre.replaceWith(box);
+  }
+
+  function showD2Svg(pre, svg) {
+    var host = document.createElement('div');
+    // Shadow DOM isolates D2's embedded <style> tags from the page.
+    var shadow = host.attachShadow({ mode: 'open' });
+    // Hoist @font-face rules to the light DOM so JCEF/Chromium resolves them.
+    hoistFontFaces(svg);
+    // Width in em causes the diagram to scale automatically with the IDE
+    // Markdown font size. height:auto preserves the aspect ratio.
+    // Falls back to max-width:100% if the SVG has no viewBox.
+    var vbWidth = svgViewBoxWidth(svg);
+    var svgCss = vbWidth
+      ? 'svg { width: ' + ((vbWidth * D2_SCALE) / refFontSize).toFixed(3) + 'em; height: auto; max-width: 100%; display: block; }'
+      : 'svg { max-width: 100%; height: auto; display: block; }';
+    shadow.innerHTML = '<style>' + svgCss + '</style>' + stripSvgDimensions(svg);
+    pre.replaceWith(host);
   }
 
   function renderD2Blocks() {
@@ -81,26 +111,9 @@
 
       pendingRequests[id] = function (svg, error) {
         if (error) {
-          el.dataset.d2Rendered = 'error';
-          var box = document.createElement('pre');
-          box.style.cssText =
-            'color:#c00;border:1px solid #c00;border-radius:4px;' +
-            'padding:8px;font-size:12px;white-space:pre-wrap;margin:4px 0;';
-          box.textContent = '\u26A0 D2: ' + error;
-          pre.replaceWith(box);
+          showD2Error(pre, error);
         } else {
-          var host = document.createElement('div');
-          // Shadow DOM isolates D2's embedded <style> tags from the page.
-          var shadow = host.attachShadow({ mode: 'open' });
-          // Hoist @font-face rules to the light DOM so JCEF/Chromium resolves them.
-          hoistFontFaces(svg);
-          // Set intrinsic pixel dimensions from the SVG's viewBox so the browser
-          // renders it at its natural size rather than stretching to fill the column.
-          // max-width:100% still allows it to shrink on narrow screens.
-          shadow.innerHTML =
-            '<style>svg { max-width: 100%; height: auto; display: block; }</style>' +
-            setSvgNaturalSize(svg);
-          pre.replaceWith(host);
+          showD2Svg(pre, svg);
         }
       };
 
@@ -115,6 +128,9 @@
   // Only after this event can we safely call messagePipe.post().
   window.addEventListener('IdeReady', function () {
     ideReady = true;
+    // Fallback of 16 is a last resort — if body has no computable font size
+    // something is already broken and diagrams will render at an arbitrary size.
+    refFontSize = parseFloat(getComputedStyle(document.body).fontSize) || 16;
     renderD2Blocks();
   });
 

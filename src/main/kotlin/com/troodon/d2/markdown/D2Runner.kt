@@ -59,15 +59,20 @@ object D2Runner {
         stdoutThread.start()
         stderrThread.start()
 
-        writerThread.join(TIMEOUT_SECONDS * 1000)
-        stdoutThread.join(TIMEOUT_SECONDS * 1000)
-        stderrThread.join(TIMEOUT_SECONDS * 1000)
-
+        // Wait on the process first so the total timeout is TIMEOUT_SECONDS, not
+        // TIMEOUT_SECONDS * (number of threads). Once the process exits its streams
+        // reach EOF and the reader/writer threads finish almost immediately.
         val completed = process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         if (!completed) {
             process.destroyForcibly()
             throw RuntimeException("D2 timed out after ${TIMEOUT_SECONDS}s")
         }
+
+        // Process has exited — a short safety timeout is enough.
+        val safetyMs = 2_000L
+        writerThread.join(safetyMs)
+        stdoutThread.join(safetyMs)
+        stderrThread.join(safetyMs)
 
         val exitCode = process.exitValue()
         if (stderr.isNotBlank()) LOG.debug("D2 stderr: $stderr")

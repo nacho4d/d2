@@ -2,6 +2,11 @@ package com.troodon.d2.util
 
 object D2CommandBuilder {
 
+    private val ARGUMENT_SPLIT_REGEX = Regex("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)")
+
+    private fun splitArguments(d2Arguments: String): List<String> =
+        if (d2Arguments.isBlank()) emptyList() else d2Arguments.split(ARGUMENT_SPLIT_REGEX)
+
     /**
      * Wraps a command list with `wsl.exe` when WSL mode is enabled.
      */
@@ -59,9 +64,7 @@ object D2CommandBuilder {
         wslDistro: String = ""
     ): List<String> {
         val args = mutableListOf<String>()
-        if (d2Arguments.isNotBlank()) {
-            args.addAll(d2Arguments.split(Regex("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)")))
-        }
+        args.addAll(splitArguments(d2Arguments))
         args.add("-")
         args.add(if (useWsl) convertToWslPath(outputFile) else outputFile)
         return buildCommand(d2Path, args, useWsl, wslDistro)
@@ -91,9 +94,7 @@ object D2CommandBuilder {
         wslDistro: String = ""
     ): List<String> {
         val args = mutableListOf<String>()
-        if (d2Arguments.isNotBlank()) {
-            args.addAll(d2Arguments.split(Regex("\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)")))
-        }
+        args.addAll(splitArguments(d2Arguments))
         args.add("-") // stdin
         args.add("-") // stdout (SVG)
         return buildCommand(d2Path, args, useWsl, wslDistro)

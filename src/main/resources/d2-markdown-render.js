@@ -67,6 +67,30 @@
     return vb ? parseFloat(vb[1]) : null;
   }
 
+  // Removes the canvas background by finding the rect whose width and height match
+  // the viewBox dimensions (i.e. the full-canvas background rect D2 always emits).
+  // The rect is removed entirely rather than set to fill="none" because the SVG's
+  // embedded CSS class (fill-N7) would override a fill attribute, winning over it.
+  function stripSvgBackground(svg) {
+    var vb = svg.match(/viewBox="[\d.+-]+\s+[\d.+-]+\s+([\d.]+)\s+([\d.]+)"/);
+    if (!vb) return svg;
+    var vbW = parseFloat(vb[1]);
+    var vbH = parseFloat(vb[2]);
+    var replaced = false;
+    return svg.replace(/<rect\b([^>]*)\/>/g, function (match, attrs) {
+      if (replaced) return match;
+      var wMatch = attrs.match(/\bwidth="([^"]+)"/);
+      var hMatch = attrs.match(/\bheight="([^"]+)"/);
+      var fillMatch = attrs.match(/\bfill="([^"]+)"/);
+      if (!wMatch || !hMatch || !fillMatch) return match;
+      if (parseFloat(wMatch[1]) === vbW && parseFloat(hMatch[1]) === vbH && fillMatch[1] !== 'none') {
+        replaced = true;
+        return '';
+      }
+      return match;
+    });
+  }
+
   // Removes explicit width/height attributes from the root <svg> so CSS controls sizing.
   function stripSvgDimensions(svg) {
     var s = svg.replace(/(<svg\b[^>]*?)\s+width="[^"]*"/, '$1');
@@ -88,6 +112,8 @@
     var shadow = host.attachShadow({ mode: 'open' });
     // Hoist @font-face rules to the light DOM so JCEF/Chromium resolves them.
     hoistFontFaces(svg);
+
+    svg = stripSvgBackground(svg);
     // Width in em causes the diagram to scale automatically with the IDE
     // Markdown font size. height:auto preserves the aspect ratio.
     // Falls back to max-width:100% if the SVG has no viewBox.
